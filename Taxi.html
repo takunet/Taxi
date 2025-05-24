@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>タクシードライバー給料計算機</title>
+  <style>
+    /* Reset & base */
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f8f9fa;
+      margin: 0;
+      padding: 20px;
+      color: #212529;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    main {
+      background: #fff;
+      padding: 24px 28px;
+      border-radius: 8px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+      max-width: 420px;
+      width: 100%;
+    }
+    h1 {
+      margin-bottom: 24px;
+      font-weight: 700;
+      font-size: 1.6rem;
+      color: #007bff;
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #343a40;
+    }
+    .input-group {
+      margin-bottom: 20px;
+    }
+    input[type="number"], select {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 1rem;
+      border: 1.5px solid #ced4da;
+      border-radius: 6px;
+      transition: border-color 0.2s ease-in-out;
+    }
+    input[type="number"]:focus, select:focus {
+      border-color: #80bdff;
+      outline: none;
+      box-shadow: 0 0 4px #80bdff;
+    }
+    .radio-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+      margin-bottom: 16px;
+      user-select: none;
+    }
+    .radio-group label {
+      font-weight: normal;
+      color: #495057;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #007bff;
+      color: white;
+      font-weight: 700;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      margin-top: 8px;
+      user-select: none;
+    }
+    button:hover,
+    button:focus {
+      background-color: #0056b3;
+      outline: none;
+    }
+    .result {
+      margin-top: 28px;
+      background: #e9f7ff;
+      padding: 16px 20px;
+      border-radius: 8px;
+      border: 1px solid #b6e0fe;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #084298;
+      white-space: pre-line;
+    }
+    .note {
+      font-size: 0.85rem;
+      color: #6c757d;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>タクシードライバー給料計算機</h1>
+    <form id="salaryForm" autocomplete="off" novalidate>
+      <div class="input-group">
+        <label>売上の種類</label>
+        <div class="radio-group" role="radiogroup" aria-label="売上の種類">
+          <label><input type="radio" name="salesType" value="taxExcluded" checked /> 税抜き</label>
+          <label><input type="radio" name="salesType" value="taxIncluded" /> 税込み</label>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label for="salesAmount">売上金額（円）</label>
+        <input type="number" id="salesAmount" name="salesAmount" min="0" step="100" placeholder="例: 100000" required aria-required="true" />
+      </div>
+
+      <div class="input-group">
+        <label for="workDays">勤務日数（月）</label>
+        <select id="workDays" name="workDays" required aria-required="true" >
+          <option value="11">11日</option>
+          <option value="12" selected>12日</option>
+          <option value="13">13日</option>
+        </select>
+        <div class="note">※1日の労働時間は固定で21時間です。</div>
+      </div>
+
+      <div class="input-group">
+        <label for="commissionRate">歩合率（％）</label>
+        <input type="number" id="commissionRate" name="commissionRate" min="1" max="100" step="0.1" value="55" required aria-required="true" />
+      </div>
+
+      <div class="input-group">
+        <label for="highwayCost">高速代やパーキングメーター代などの経費（円）</label>
+        <input type="number" id="highwayCost" name="highwayCost" min="0" step="10" value="0" />
+        <div class="note">※給料には含まれませんが記録として入力してください。</div>
+      </div>
+
+      <button type="submit" aria-label="給料を計算する">給料を計算する</button>
+    </form>
+
+    <pre id="result" class="result" aria-live="polite" aria-atomic="true" style="display:none;"></pre>
+  </main>
+
+  <script>
+    (function() {
+      const form = document.getElementById('salaryForm');
+      const resultEl = document.getElementById('result');
+      const TAX_RATE = 0.10; // 10%
+
+      function formatCurrency(num) {
+        return num.toLocaleString('ja-JP', { style: 'currency', currency: 'JPY' });
+      }
+
+      form.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        // Read values
+        const salesType = form.salesType.value;
+        const salesAmountRaw = form.salesAmount.value.trim();
+        const workDaysRaw = form.workDays.value;
+        const commissionRateRaw = form.commissionRate.value.trim();
+        const highwayCostRaw = form.highwayCost.value.trim();
+
+        // Validate inputs
+        if (!salesAmountRaw || isNaN(salesAmountRaw) || Number(salesAmountRaw) < 0) {
+          alert('売上金額は0以上の数値を入力してください。');
+          form.salesAmount.focus();
+          return;
+        }
+        if (!workDaysRaw || isNaN(workDaysRaw) || !(workDaysRaw == '11' || workDaysRaw == '12' || workDaysRaw == '13')) {
+          alert('勤務日数は11日、12日、13日のいずれかを選択してください。');
+          form.workDays.focus();
+          return;
+        }
+        if (!commissionRateRaw || isNaN(commissionRateRaw) || Number(commissionRateRaw) <= 0 || Number(commissionRateRaw) > 100) {
+          alert('歩合率は1～100の範囲で入力してください。');
+          form.commissionRate.focus();
+          return;
+        }
+        if (highwayCostRaw === '' || isNaN(highwayCostRaw) || Number(highwayCostRaw) < 0) {
+          alert('経費は0以上の数値を入力してください。');
+          form.highwayCost.focus();
+          return;
+        }
+
+        const salesAmount = Number(salesAmountRaw);
+        const workDays = Number(workDaysRaw);
+        const commissionRate = Number(commissionRateRaw);
+        const highwayCost = Number(highwayCostRaw);
+
+        // Convert salesAmount to tax excluded if input is "税込み"
+        let salesTaxExcluded = salesAmount;
+        if (salesType === 'taxIncluded') {
+          salesTaxExcluded = salesAmount / (1 + TAX_RATE);
+        }
+
+        // Calculate daily sales (tax excluded)
+        const dailySales = salesTaxExcluded / workDays;
+
+        // Calculate total work hours (fixed)
+        const dailyHours = 21;
+        const totalHours = dailyHours * workDays;
+
+        // Calculate commission salary
+        // 給料 = 売上(税抜き) x 歩合率(%)（基本給なし、勤務日数は売上に含んでいるので掛けない）
+        const commissionSalary = salesTaxExcluded * (commissionRate / 100);
+
+        // Display results
+        let outputText =
+          `【計算結果】\n` +
+          `販売額（税抜き）: ${formatCurrency(salesTaxExcluded)}\n` +
+          `販売額（日割り）: ${formatCurrency(dailySales)}\n` +
+          `勤務日数: ${workDays}日\n` +
+          `1日の労働時間: ${dailyHours}時間（固定）\n` +
+          `総労働時間: ${totalHours}時間\n` +
+          `歩合率: ${commissionRate.toFixed(1)}%\n` +
+          `歩合給（給与）: ${formatCurrency(Math.round(commissionSalary))}\n` +
+          `\n` +
+          `記録経費（高速代・パーキングなど）: ${formatCurrency(highwayCost)}\n\n` +
+          `※基本給、経費負担はありません。\n` +
+          `※税込み売上を入力した場合は税抜き換算して計算しています。`;
+
+        resultEl.textContent = outputText;
+        resultEl.style.display = 'block';
+        resultEl.focus();
+      });
+    })();
+  </script>
+</body>
+</html>
